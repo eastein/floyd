@@ -1,3 +1,3 @@
 # Is There Anybody In There?
 
-Given a list of IP addresses and the info needed to join an IRC channel, answer the !in trigger with the list of nicks who are connected from the IP addresses given.  Obviously, this is defeated by ident masks, sneaky vhosts, people using BNCs, people using shells, and a billion other things. It's just *handy*, ok?
+Given the info needed to join an IRC channel, answer the !people trigger with the list of nicks who are connected from the same hostname/ip as the bot.  Obviously, this is defeated by host masks, sneaky vhosts, people using BNCs, people using shells, and a billion other things. It's just *handy*, ok?

@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+
+import sys
+import mediorc
+
+class FloydBot(mediorc.IRC) :
+	def __init__(self, server, nick, chan) :
+		self.peeps = {}
+		self.who_list_store = []
+		mediorc.IRC.__init__(self, server, nick, chan)
+
+	def hm_set(self, hm) :
+		self.peeps[self.hm2nick(hm)] = hm
+
+	def nick_out(self, nick) :
+		del self.peeps[nick]
+
+	def hm2nick(self, hm) :
+		return hm.split('!', 1)[0]
+
+	def hm2host(self, hm) :
+		return hm.split('@', 1)[1]
+
+	def hm_out(self, hm) :
+		self.nick_out(self.hm2nick(hm))
+
+	def nick_change(self, oldhm, nick) :
+		oldnick, oldhost = oldhm.split('!', 1)
+		hm = nick + '!' + oldhost
+		del self.peeps[oldnick]
+		self.hm_set(hm)
+
+	def on_pubmsg(self, c, e) :
+		chan = e.target()
+		txt = e.arguments()[0]
+
+		if txt == '!people' :
+			myhost = self.hm2host(self.peeps[self._nick])
+			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.hm2host(self.peeps[nick]) == myhost]
+			if not people :
+				self.connection.privmsg(chan, "I don't see anyone IRCing from where I am.")
+			else :
+				noun = 'people'
+				if len(people) == 1 :
+					noun = 'person'
+				self.connection.privmsg(chan, "I see %d %s: %s" % (len(people), noun, ', '.join(people)))
+	def on_join(self, c, e) :
+		self.initialize_pinger()
+
+		hm = e.source()
+		nick = self.hm2nick(hm)
+		if self._nick == nick : # todo case, for pretty much all == instances
+			self.connection.who(e.target())
+		
+		self.hm_set(hm)
+
+	def on_kick(self, c, e) :
+		self.nick_out(e.arguments()[0])
+
+	def on_part(self, c, e) :
+		self.hm_out(e.source())
+
+	def on_quit(self, c, e) :
+		self.hm_out(e.source())
+
+	def on_nick(self, c, e) :
+		self.nick_change(e.source(), e.target())
+
+	def on_whoreply(self, c, e) :
+		chan, ident, host, server, nick, flag, name = e.arguments()
+		hm = nick + '!' + ident + '@' + host
+
+		self.hm_set(hm)
+
+class FloydThread(mediorc.IRCThread) :
+	def __init__(self, server, nick, chan) :
+		self.bot_create = lambda: FloydBot(server, nick, chan)
+		mediorc.IRCThread.__init__(self)
+
+if __name__ == '__main__' :
+	try :
+		s = FloydThread(sys.argv[1], sys.argv[2], sys.argv[3])
+	except IndexError :
+		print 'usage: floyd server nick channel'
+		sys.exit(1)
+
+	# threading? NOPE
+	s.run()
