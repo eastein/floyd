@@ -4,7 +4,9 @@ import sys
 import mediorc
 
 class FloydBot(mediorc.IRC) :
-	def __init__(self, server, nick, chan) :
+	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
+		self.location_name = location_name
+		self.ignore_nicks = ignore_nicks
 		self.peeps = {}
 		self.who_list_store = []
 		mediorc.IRC.__init__(self, server, nick, chan)
@@ -36,14 +38,14 @@ class FloydBot(mediorc.IRC) :
 
 		if txt == '!people' :
 			myhost = self.hm2host(self.peeps[self._nick])
-			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.hm2host(self.peeps[nick]) == myhost]
+			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.hm2host(self.peeps[nick]) == myhost and nick not in self.ignore_nicks]
 			if not people :
-				self.connection.privmsg(chan, "I don't see anyone IRCing from where I am.")
+				self.connection.privmsg(chan, "I don't see anyone connected from %s." % self.location_name)
 			else :
 				noun = 'people'
 				if len(people) == 1 :
 					noun = 'person'
-				self.connection.privmsg(chan, "I see %d %s: %s" % (len(people), noun, ', '.join(people)))
+				self.connection.privmsg(chan, "I see %d %s connected from %s: %s" % (len(people), noun, self.location_name, ', '.join(people)))
 	def on_join(self, c, e) :
 		self.initialize_pinger()
 
@@ -73,15 +75,15 @@ class FloydBot(mediorc.IRC) :
 		self.hm_set(hm)
 
 class FloydThread(mediorc.IRCThread) :
-	def __init__(self, server, nick, chan) :
-		self.bot_create = lambda: FloydBot(server, nick, chan)
+	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
+		self.bot_create = lambda: FloydBot(server, nick, chan, location_name, ignore_nicks)
 		mediorc.IRCThread.__init__(self)
 
 if __name__ == '__main__' :
 	try :
-		s = FloydThread(sys.argv[1], sys.argv[2], sys.argv[3])
+		s = FloydThread(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:])
 	except IndexError :
-		print 'usage: floyd server nick channel'
+		print 'usage: floyd server nick channel "location name" [nicks to ignore]'
 		sys.exit(1)
 
 	# threading? NOPE
