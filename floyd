@@ -36,11 +36,12 @@ class FloydBot(mediorc.IRC) :
 		chan = e.target()
 		txt = e.arguments()[0]
 
-		if txt == '!people' :
+		if txt in ('!people', '!page') :
 			myhost = self.hm2host(self.peeps[self._nick])
 			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.hm2host(self.peeps[nick]) == myhost and nick not in self.ignore_nicks]
 			if not people :
-				self.connection.privmsg(chan, "I don't see anyone connected from %s." % self.location_name)
+				if txt == '!people' :
+					self.connection.privmsg(chan, "I don't see anyone connected from %s." % self.location_name)
 			else :
 				noun = 'people'
 				if len(people) == 1 :
