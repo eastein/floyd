@@ -2,6 +2,7 @@
 
 import sys
 import mediorc
+import mediorc_dns
 
 class FloydBot(mediorc.IRC) :
 	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
@@ -9,6 +10,7 @@ class FloydBot(mediorc.IRC) :
 		self.ignore_nicks = ignore_nicks
 		self.peeps = {}
 		self.who_list_store = []
+		self.rc = mediorc_dns.ResolverCacher()
 		mediorc.IRC.__init__(self, server, nick, chan)
 
 	def hm_set(self, hm) :
@@ -23,6 +25,19 @@ class FloydBot(mediorc.IRC) :
 	def hm2host(self, hm) :
 		return hm.split('@', 1)[1]
 
+	def matches(self, nick, myhost) :
+		host = self.hm2host(self.peeps[nick])
+		if host == myhost :
+			return True
+
+		for ip in self.rc.all_ips(host) + [host] :
+			if ip in myhost :
+				return True
+		for ip in self.rc.all_ips(myhost) + [myhost] :
+			if ip in host :
+				return True
+		return False
+	
 	def hm_out(self, hm) :
 		self.nick_out(self.hm2nick(hm))
 
@@ -38,7 +53,7 @@ class FloydBot(mediorc.IRC) :
 
 		if txt in ('!people', '!page') :
 			myhost = self.hm2host(self.peeps[self._nick])
-			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.hm2host(self.peeps[nick]) == myhost and nick not in self.ignore_nicks]
+			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.matches(nick, myhost) and nick not in self.ignore_nicks]
 			if not people :
 				if txt == '!people' :
 					self.connection.privmsg(chan, "I don't see anyone connected from %s." % self.location_name)
