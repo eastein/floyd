@@ -47,21 +47,24 @@ class FloydBot(mediorc.IRC) :
 		del self.peeps[oldnick]
 		self.hm_set(hm)
 
+	def determine_people(self) :
+		myhost = self.hm2host(self.peeps[self._nick])
+		self.people = [nick for nick in self.peeps.keys() if nick != self._nick and self.matches(nick, myhost) and nick not in self.ignore_nicks]
+
 	def on_pubmsg(self, c, e) :
 		chan = e.target()
 		txt = e.arguments()[0]
 
 		if txt in ('!people', '!page') :
-			myhost = self.hm2host(self.peeps[self._nick])
-			people = [nick for nick in self.peeps.keys() if nick != self._nick and self.matches(nick, myhost) and nick not in self.ignore_nicks]
-			if not people :
+			if not self.people :
 				if txt == '!people' :
 					self.connection.privmsg(chan, "I don't see anyone connected from %s." % self.location_name)
 			else :
 				noun = 'people'
-				if len(people) == 1 :
+				if len(self.people) == 1 :
 					noun = 'person'
-				self.connection.privmsg(chan, "I see %d %s connected from %s: %s" % (len(people), noun, self.location_name, ', '.join(people)))
+				self.connection.privmsg(chan, "I see %d %s connected from %s: %s" % (len(self.people), noun, self.location_name, ', '.join(self.people)))
+
 	def on_join(self, c, e) :
 		self.initialize_pinger()
 
@@ -71,24 +74,32 @@ class FloydBot(mediorc.IRC) :
 			self.connection.who(e.target())
 		
 		self.hm_set(hm)
+		self.determine_people()
 
 	def on_kick(self, c, e) :
 		self.nick_out(e.arguments()[0])
+		self.determine_people()
 
 	def on_part(self, c, e) :
 		self.hm_out(e.source())
+		self.determine_people()
 
 	def on_quit(self, c, e) :
 		self.hm_out(e.source())
+		self.determine_people()
 
 	def on_nick(self, c, e) :
 		self.nick_change(e.source(), e.target())
+		self.determine_people()
 
 	def on_whoreply(self, c, e) :
 		chan, ident, host, server, nick, flag, name = e.arguments()
 		hm = nick + '!' + ident + '@' + host
 
 		self.hm_set(hm)
+
+	def on_endofwho(self, c ,e) :
+		self.determine_people()
 
 class FloydThread(mediorc.IRCThread) :
 	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
