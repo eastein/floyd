@@ -3,14 +3,26 @@
 import sys
 import mediorc
 import mediorc_dns
+import time
+import optparse
+import zmqsub
 
 class FloydBot(mediorc.IRC) :
-	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
+	def __init__(self, server, nick, chan, location_name, ignore_nicks, zmq_url) :
 		self.location_name = location_name
 		self.ignore_nicks = ignore_nicks
 		self.peeps = {}
+		self.people = list()
 		self.who_list_store = []
 		self.rc = mediorc_dns.ResolverCacher()
+
+		if zmq_url :
+			self.zmqpub = zmqsub.JSONZMQPub(zmq_url)
+		else :
+			self.zmqpub = None
+		self.transmission = None
+		self.transmitted = time.time()
+
 		mediorc.IRC.__init__(self, server, nick, chan)
 
 	def hm_set(self, hm) :
@@ -50,6 +62,19 @@ class FloydBot(mediorc.IRC) :
 	def determine_people(self) :
 		myhost = self.hm2host(self.peeps[self._nick])
 		self.people = [nick for nick in self.peeps.keys() if nick != self._nick and self.matches(nick, myhost) and nick not in self.ignore_nicks]
+		self.broadcast_people()
+
+	def broadcast_people(self) :
+		if self.zmqpub :
+			if time.time() > self.transmitted + 5.0 or self.people != self.transmission :
+				self.transmission = list(self.people)
+				self.transmitted = time.time()
+				transmit_api = {'users_present' : self.transmission}
+				print time.ctime() + ' transmitting %s' % transmit_api
+				self.zmqpub.send(transmit_api)
+			
+	def do_work(self) :
+		self.broadcast_people()
 
 	def on_pubmsg(self, c, e) :
 		chan = e.target()
@@ -102,16 +127,38 @@ class FloydBot(mediorc.IRC) :
 		self.determine_people()
 
 class FloydThread(mediorc.IRCThread) :
-	def __init__(self, server, nick, chan, location_name, ignore_nicks) :
-		self.bot_create = lambda: FloydBot(server, nick, chan, location_name, ignore_nicks)
+	def __init__(self, server, nick, chan, location_name, ignore_nicks, zmq_url) :
+		self.bot_create = lambda: FloydBot(server, nick, chan, location_name, ignore_nicks, zmq_url)
 		mediorc.IRCThread.__init__(self)
 
 if __name__ == '__main__' :
-	try :
-		s = FloydThread(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:])
-	except IndexError :
-		print 'usage: floyd server nick channel "location name" [nicks to ignore]'
-		sys.exit(1)
+	parser = optparse.OptionParser()
+	parser.add_option('-l', '--location-name', dest='name', help="the name of the location being monitored.")
+	parser.add_option('-i', '--ignore-nicks', dest='ignore', help="ignore these nicks (comma separated, no whitespace).")
+	parser.add_option('-u', '--zmq-url', dest='zmq_url', help="zmq url to bind on to transmit presence information.")
 
-	# threading? NOPE
+	(options, args) = parser.parse_args()
+
+	if options.ignore :
+		ignore = options.ignore.split(',')
+	else :
+		ignore = []
+
+	if options.name :
+		name = options.name
+	else :
+		name = "the monitored location"
+
+	if options.zmq_url :
+		zmq_url = options.zmq_url
+	else :
+		zmq_url = None
+
+	try :
+		s = FloydThread(args[0], args[1], args[2], name, ignore, zmq_url=zmq_url)
+	except IndexError :
+		print 'usage: floyd [-u|--zmq-url url] [--location-name|-l "location name"] [-i|--ignore-nicks nicks,to,ignore] server nick channel'
+		sys.exit(1)
+	
+	# threading,? NOPE
 	s.run()
