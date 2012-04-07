@@ -8,7 +8,7 @@ import optparse
 import zmqsub
 
 class FloydBot(mediorc.IRC) :
-	def __init__(self, server, nick, chan, location_name, ignore_nicks, zmq_url) :
+	def __init__(self, server, nick, chan, location_name, ignore_nicks, zmqpub) :
 		self.location_name = location_name
 		self.ignore_nicks = ignore_nicks
 		self.peeps = {}
@@ -16,10 +16,7 @@ class FloydBot(mediorc.IRC) :
 		self.who_list_store = []
 		self.rc = mediorc_dns.ResolverCacher()
 
-		if zmq_url :
-			self.zmqpub = zmqsub.JSONZMQPub(zmq_url)
-		else :
-			self.zmqpub = None
+		self.zmqpub = zmqpub
 		self.transmission = None
 		self.transmitted = time.time()
 
@@ -128,7 +125,10 @@ class FloydBot(mediorc.IRC) :
 
 class FloydThread(mediorc.IRCThread) :
 	def __init__(self, server, nick, chan, location_name, ignore_nicks, zmq_url) :
-		self.bot_create = lambda: FloydBot(server, nick, chan, location_name, ignore_nicks, zmq_url)
+		zmqpub = None
+		if zmq_url :
+			zmqpub = zmqsub.JSONZMQPub(zmq_url)
+		self.bot_create = lambda: FloydBot(server, nick, chan, location_name, ignore_nicks, zmqpub)
 		mediorc.IRCThread.__init__(self)
 
 if __name__ == '__main__' :
