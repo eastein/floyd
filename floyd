@@ -26,7 +26,8 @@ class FloydBot(mediorc.IRC) :
 		self.peeps[self.hm2nick(hm)] = hm
 
 	def nick_out(self, nick) :
-		del self.peeps[nick]
+		if nick in self.peeps :
+			del self.peeps[nick]
 
 	def hm2nick(self, hm) :
 		return hm.split('!', 1)[0]
